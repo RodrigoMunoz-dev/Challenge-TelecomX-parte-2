@@ -1,254 +1,342 @@
-Challenge Telecom X · Parte 2 — Alura Latam
-Construcción de modelos predictivos de Machine Learning para anticipar la cancelación de clientes.
+# 📊 TelecomX Churn Prediction — Machine Learning Analysis
 
-📑 Tabla de Contenidos
+Este proyecto desarrolla un modelo de **Machine Learning para predecir el abandono de clientes (Churn)** en una empresa de telecomunicaciones.
 
-Propósito del Proyecto
+El objetivo es **identificar clientes con alto riesgo de cancelar el servicio**, permitiendo a la empresa aplicar estrategias de retención temprana.
 
-Estructura del Repositorio
+El análisis incluye:
 
-Contexto del Problema
+- Exploratory Data Analysis (EDA)
+- Preprocesamiento de datos
+- Modelos de Machine Learning
+- Optimización de hiperparámetros
+- Evaluación comparativa de modelos
 
-Proceso de Preparación de Datos
+---
 
-Decisiones de Modelización
+# 📁 Dataset
 
-Modelos Implementados
+El dataset contiene **7043 clientes** y **18 variables predictoras** relacionadas con:
 
-Métricas de Evaluación
+- Información demográfica
+- Servicios contratados
+- Facturación
+- Tipo de contrato
+- Método de pago
 
-Exploración de Threshold
+Distribución de la variable objetivo:
 
-Principales Insights
+| Clase | Clientes |
+|------|------|
+| No Churn | 5174 |
+| Churn | 1869 |
 
-Conclusiones Estratégicas
+**Tasa de churn:**  
+**26.5%**
 
-Instrucciones de Ejecución
+Esto implica un **dataset desbalanceado**, lo que requiere técnicas específicas de modelado.
 
-Tecnologías Utilizadas
+---
 
-🎯 Propósito del Proyecto
+# 🔎 Exploratory Data Analysis (EDA)
 
-Este proyecto forma parte del Challenge Telecom X - Parte 2 del programa de formación en Ciencia de Datos de Alura Latam.
+El análisis exploratorio tuvo cuatro objetivos principales:
 
-El objetivo principal es construir modelos de clasificación capaces de predecir qué clientes tienen mayor probabilidad de cancelar su servicio (Churn), con el fin de ayudar a la empresa a implementar estrategias de retención proactivas.
+1. Analizar la distribución de la variable objetivo
+2. Comparar variables numéricas entre clientes que abandonan y los que no
+3. Calcular tasas de churn por categoría
+4. Detectar multicolinealidad entre variables numéricas
 
-Preguntas clave del análisis:
+## Variables Numéricas Analizadas
 
-¿Quiénes son los clientes con mayor riesgo de evasión?
+- Tenure (antigüedad del cliente)
+- ChargesMonthly
+- ChargesDaily
+- ChargesTotal
 
-¿Qué variables influyen más en ese comportamiento?
+Se utilizaron:
 
-¿Qué perfil de cliente requiere mayor atención?
+- Histogramas
+- Boxplots
+- Matriz de correlación
 
-📁 Estructura del Repositorio
-telecomx-churn/
+---
 
+# ⚠️ Multicolinealidad detectada
 
-├── Challenge Alura TelecomX parte2.ipynb # Notebook principal con el análisis completo
+Se identificaron correlaciones muy altas entre variables de facturación.
 
-├── README.md   # Documentación del proyecto
 
-└── datos_tratados.csv  # Dataset preprocesado (output del Challenge Parte 1)
+ChargesDaily ↔ ChargesMonthly : r = 1.00
+ChargesTotal ↔ Tenure : r = 0.83
 
-📊 Contexto del Problema
 
-El dataset contiene información de 7.043 clientes de una empresa de telecomunicaciones.
+Esto ocurre porque:
 
-Variable objetivo:
 
-Churn (1 = canceló, 0 = permaneció)
+ChargesDaily = ChargesMonthly / 30
+ChargesTotal ≈ ChargesMonthly × Tenure
 
-Distribución:
 
-No Churn: ~73.5%
+Por lo tanto se decidió eliminar:
 
-Churn: ~26.5%
+- `ChargesDaily`
+- `ChargesTotal`
 
-Este desbalance (~3:1) impacta directamente en las decisiones de modelado y evaluación.
+Variables finales conservadas:
 
-🧹 Proceso de Preparación de Datos
-1️⃣ Limpieza y selección de variables
+- `Tenure`
+- `ChargesMonthly`
 
-Se eliminaron las siguientes columnas antes del modelado:
+---
 
-Columna	Motivo
-CustomerID	Identificador sin valor predictivo
-ChargesDaily	Correlación perfecta con ChargesMonthly (r = 1.00) — multicolinealidad
-ChargesTotal	Correlación alta con Tenure (r = 0.83) — variable derivada
+# ⚙️ Preprocesamiento de Datos
 
-La eliminación se justificó mediante análisis de correlación (ver sección correspondiente en el notebook).
-Mantener variables altamente correlacionadas puede inflar la varianza de coeficientes en Regresión Logística y distorsionar la interpretación.
+El pipeline de preprocesamiento incluye:
 
-Variables retenidas:
+### Eliminación de variables
 
-Numéricas: Tenure, ChargesMonthly
+CustomerID
+ChargesDaily
+ChargesTotal
 
-Categóricas: 16 variables (demográficas, contractuales y de servicios)
 
-2️⃣ Codificación y estandarización
+### Codificación de la variable objetivo
 
-Implementadas dentro de un Pipeline con ColumnTransformer:
 
-StandardScaler → variables numéricas
+Churn
+Yes → 1
+No → 0
 
-OneHotEncoder(handle_unknown='ignore') → variables categóricas
 
-Esto evita data leakage y garantiza un preprocesamiento consistente.
+### Transformaciones
 
-3️⃣ Split estratificado
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y,
-    test_size=0.2,
-    random_state=42,
-    stratify=y
-)
+| Tipo de variable | Transformación |
+|---|---|
+| Numéricas | StandardScaler |
+| Categóricas | OneHotEncoder |
 
-El parámetro stratify=y mantiene la proporción de churn en entrenamiento y prueba.
+Esto se implementa mediante **ColumnTransformer dentro de un Pipeline**, evitando **data leakage**.
 
-⚙️ Decisiones de Modelización
-¿Por qué class_weight='balanced'?
+---
 
-El dataset presenta desbalance (~3:1).
-Este parámetro ajusta los pesos de las clases de forma inversamente proporcional a su frecuencia.
+# ✂️ División Train/Test
 
-¿Por qué optimizar por Recall?
+Se utilizó un **split estratificado** para mantener la proporción de churn.
 
-En problemas de churn:
 
-Falso negativo → cliente se va y no lo detectamos (alto costo).
+Train: 5634 registros
+Test : 1409 registros
+Churn rate: 26.5%
 
-Falso positivo → cliente es contactado sin necesidad (costo menor).
+train_test_split(..., stratify=y)
 
-Por eso RandomizedSearchCV utiliza:
 
-scoring='recall'
-¿Por qué Regresión Logística puede rendir mejor?
+---
 
-En este dataset específico, las relaciones entre variables y churn muestran un comportamiento mayormente lineal (por ejemplo, mayor antigüedad → menor churn).
+# 🤖 Modelos de Machine Learning
 
-En este contexto, modelos lineales como la Regresión Logística pueden ser más estables y competitivos que modelos más complejos.
+Se entrenaron dos modelos principales:
 
-🤖 Modelos Implementados
+## 1️⃣ Logistic Regression
 
-Se entrenaron cuatro configuraciones:
+Modelo lineal interpretable adecuado para relaciones aproximadamente lineales entre variables y churn.
 
-Modelo	Descripción
-LR Base	Regresión Logística con hiperparámetros por defecto
-RF Base	Random Forest (200 árboles, max_depth=10)
-LR Optimizado	RandomizedSearchCV (40 iteraciones, scoring=recall)
-RF Optimizado	RandomizedSearchCV (40 iteraciones, scoring=recall)
+Configuración:
 
-Validación cruzada:
 
-StratifiedKFold
+class_weight = "balanced"
 
-5 folds
 
-📈 Métricas de Evaluación
+Esto compensa el desbalance del dataset.
 
-Recall ⭐ (principal)
+---
 
-ROC-AUC
+## 2️⃣ Random Forest
 
-F1-Score
+Modelo basado en **ensemble de árboles de decisión**, capaz de capturar interacciones no lineales entre variables.
 
-Matriz de Confusión
+También se utilizó:
 
-Curva ROC
 
-🎚 Exploración de Threshold
+class_weight = "balanced"
 
-Por defecto, los clasificadores usan 0.5 como umbral.
 
-Se exploraron los siguientes valores sobre el mejor modelo:
+---
 
-Threshold	Comportamiento
-0.50	Más conservador (mayor precisión)
-0.45	Balance intermedio
-0.40	Mayor Recall
-0.35	Recall máximo (más falsos positivos)
+# 📊 Métricas de Evaluación
 
-Reducir el threshold aumenta la capacidad de detectar clientes en riesgo.
+Para problemas de churn, la métrica más importante es **Recall**, ya que el objetivo es **detectar la mayor cantidad posible de clientes que abandonarán**.
 
-La elección depende del contexto operativo:
+Métricas utilizadas:
 
-Recursos amplios → threshold más agresivo (0.35–0.40)
+- Recall ⭐
+- ROC-AUC
+- F1-Score
+- Classification Report
+- Confusion Matrix
+- ROC Curve
 
-Recursos limitados → threshold más conservador (0.45–0.50)
+---
 
-🔎 Principales Insights
-1️⃣ Tipo de contrato
+# 📈 Resultados — Modelos Base
 
-Clientes con contrato mensual presentan mayor tasa de churn.
+| Modelo | ROC-AUC | Recall | F1 |
+|------|------|------|------|
+| Logistic Regression | **0.8422** | **0.7834** | 0.6168 |
+| Random Forest | 0.8416 | 0.7193 | **0.6270** |
 
-2️⃣ Antigüedad
+Observación:
 
-Los primeros 12 meses son críticos.
+- La **Regresión Logística obtiene mejor Recall**
+- Random Forest obtiene ligeramente mejor F1
 
-3️⃣ Servicios adicionales
+---
 
-Servicios como OnlineSecurity y TechSupport reducen churn.
+# 🔧 Optimización de Modelos
 
-4️⃣ Perfil crítico
+Se utilizó **RandomizedSearchCV** con:
 
-Contrato mensual + alto cargo mensual + baja antigüedad = mayor riesgo.
 
-🏁 Conclusiones Estratégicas
-Acciones prioritarias
+scoring = "recall"
+cv = StratifiedKFold(5)
+n_iter = 40
 
-Score mensual de riesgo para clientes mensuales.
 
-Migración a contrato anual con incentivos.
+Esto permite explorar eficientemente el espacio de hiperparámetros.
 
-Programa de onboarding estructurado.
+---
 
-Bundle gratuito de servicios adicionales.
+# 🏆 Mejores Hiperparámetros
 
-Revisión de pricing/experiencia en segmentos críticos.
+## Logistic Regression
 
-🎯 Recomendación Final
 
-El modelo permite transformar el churn en un problema preventivo.
+C = 0.00355
+penalty = l2
+solver = liblinear
+class_weight = balanced
 
-Se recomienda su uso como sistema de alerta temprana, ejecutado periódicamente para activar campañas de retención antes de que el cliente cancele.
 
-▶ Instrucciones de Ejecución
-Requisitos
-pip install pandas numpy matplotlib seaborn scikit-learn scipy
-Versiones recomendadas
+Recall CV:
 
-Python 3.9+
 
-pandas 1.5+
+0.798
 
-scikit-learn 1.2+
 
-Pasos
-git clone https://github.com/tu-usuario/telecomx-churn.git
-cd telecomx-churn
-jupyter notebook TelecomX_Churn.ipynb
+---
 
-Ejecutar:
+## Random Forest
 
-Kernel → Restart & Run All
 
-⚠️ RandomizedSearchCV puede tardar algunos minutos.
+n_estimators = 445
+max_depth = 5
+min_samples_split = 10
+min_samples_leaf = 2
+max_features = sqrt
+class_weight = balanced
 
-🛠 Tecnologías Utilizadas
 
-Python
+Recall CV:
 
-Pandas / NumPy
 
-Matplotlib / Seaborn
+0.8107
 
-Scikit-learn
 
-SciPy
+---
 
-Jupyter Notebook
+# 📊 Resultados — Modelos Optimizados
 
-Git / GitHub
+| Modelo | ROC-AUC | Recall | F1 |
+|------|------|------|------|
+| Logistic Regression Optimizada | 0.8400 | 0.7968 | **0.6307** |
+| Random Forest Optimizado | 0.8418 | **0.8102** | 0.6228 |
 
-Challenge Telecom X Parte 2 — Alura Latam · Ciencia de Datos
+---
+
+# 🏆 Comparación Final
+
+| Modelo | ROC-AUC | Recall | F1 |
+|------|------|------|------|
+| LR Base | **0.8422** | 0.7834 | 0.6168 |
+| RF Base | 0.8416 | 0.7193 | 0.6270 |
+| LR Optimizada | 0.8400 | 0.7968 | **0.6307** |
+| RF Optimizado | 0.8418 | **0.8102** | 0.6228 |
+
+### Mejores métricas
+
+
+Mejor Recall → Random Forest Optimizado
+Mejor ROC-AUC → Logistic Regression Base
+Mejor F1 Score → Logistic Regression Optimizada
+
+
+---
+
+# 📊 Validación Cruzada
+
+Se utilizó **Stratified K-Fold (5 folds)** para estimar la estabilidad del modelo.
+
+Objetivos:
+
+- Reducir varianza del holdout set
+- Detectar sobreajuste
+- Obtener estimaciones más robustas
+
+---
+
+# 🧠 Interpretación del Modelo
+
+En este dataset las relaciones entre variables y churn son **principalmente lineales**.
+
+Ejemplos:
+
+
+Más Tenure → menor churn
+Más ChargesMonthly → mayor churn
+Contrato mensual → mayor churn
+Sin seguridad online → mayor churn
+
+
+Por esta razón, **Logistic Regression compite muy bien contra Random Forest**, a pesar de ser un modelo más simple.
+
+---
+
+# 💡 Conclusiones
+
+Principales hallazgos:
+
+- El dataset presenta **26.5% churn**, lo que requiere manejo del desbalance.
+- **Random Forest optimizado obtiene el mayor Recall (0.81)**.
+- **Logistic Regression ofrece alta interpretabilidad y resultados competitivos.**
+- La optimización mejora especialmente el rendimiento del Random Forest.
+
+---
+
+# 🚀 Posibles mejoras futuras
+
+- Modelos adicionales (XGBoost, LightGBM)
+- Feature engineering adicional
+- Interpretabilidad con SHAP
+- Optimización de umbral de decisión
+- Modelos de retención segmentados
+
+---
+
+# 🛠️ Tecnologías Utilizadas
+
+- Python
+- Pandas
+- NumPy
+- Scikit-learn
+- Matplotlib
+- Seaborn
+- Jupyter Notebook
+
+---
+
+# 👨‍💻 Autor
+
+Rodrigo Muñoz  
+GitHub:  
+https://github.com/RodrigoMunoz-dev
